@@ -8,6 +8,15 @@ Binaries are provided for:
  - 1.24.3 and later: Python 3.7-3.10, 64-bit for Windows, macOS and GNU/Linux.
 
 # How to Build 
+
+### To build for Windows:
+```text
+1. Install MingW-W64-builds from https://www.mingw-w64.org/downloads/
+It is important to change the default to 64-bit when installing if a 64-bit Python is installed in windows.
+2. Put the bin/ folder inside x86_64-8.1.0-posix-seh-rt_v6-rev0 in your system PATH when compiling.
+3. The code below will moneky-patch distutils to work.
+```
+
 ### Build wheel
 ```shell
 python3 setup.py bdist_wheel

@@ -9,7 +9,7 @@ extra_link_args: List[str] = []
 
 if sys.platform == "win32":
     # To build for Windows:
-    # 1. Install MingW-W64-builds from https://mingw-w64.org/doku.php/download
+    # 1. Install MingW-W64-builds from https://www.mingw-w64.org/downloads/
     #    It is important to change the default to 64-bit when installing if a
     #    64-bit Python is installed in windows.
     # 2. Put the bin/ folder inside x86_64-8.1.0-posix-seh-rt_v6-rev0 in your

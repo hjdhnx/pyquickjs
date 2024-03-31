@@ -3,7 +3,7 @@ import gc
 import json
 import unittest
 
-import quickjs
+import pyquickjs as quickjs
 
 
 class LoadModule(unittest.TestCase):
