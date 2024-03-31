@@ -506,7 +506,34 @@ static PyObject *runtime_eval_internal(RuntimeData *self, PyObject *args, int ev
 	}
 	prepare_call_js(self);
 	JSValue value;
-	value = JS_Eval(self->context, code, strlen(code), "<input>", eval_type);
+	if (eval_type == JS_EVAL_TYPE_MODULE) {
+        val = JS_Eval(self->context, code, strlen(code), "<input>", eval_type | JS_EVAL_FLAG_COMPILE_ONLY);
+
+        if (JS_IsException(val)) {
+            quickjs_exception_to_python(ctx);
+            return NULL;
+        }
+        if (JS_ResolveModule(context, val) < 0) {
+            JS_FreeValue(context, val);
+            return NULL;
+        }
+	} else { // 不包含模块,直接运行
+	    val = JS_Eval(self->context, code, strlen(code), "<input>", eval_type);
+	    if (JS_IsException(val)) {
+            quickjs_exception_to_python(ctx);
+            return NULL;
+        }
+	}
+
+    value = JS_EvalFunction(context, val);
+    if (!JS_ExecutePendingJob(self->runtime, &ctx)) {
+       JS_FreeValue(context, value);
+       return NULL;
+    }
+    if (JS_IsException(value)) {
+        quickjs_exception_to_python(ctx);
+        return NULL;
+    }
 	end_call_js(self);
 	return quickjs_to_python(self, value);
 }
