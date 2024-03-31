@@ -15,6 +15,7 @@ if sys.platform == "win32":
     # 2. Put the bin/ folder inside x86_64-8.1.0-posix-seh-rt_v6-rev0 in your
     #    system PATH when compiling.
     # 3. The code below will moneky-patch distutils to work.
+    # python setup.py build -c mingw32 bdist_wheel
     import distutils.cygwinccompiler
 
     distutils.cygwinccompiler.get_msvcr = lambda: []

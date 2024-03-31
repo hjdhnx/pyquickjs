@@ -2,7 +2,7 @@
 
 Just install with
 
-	pip install pyquickjs
+    pip install pyquickjs -i https://pypi.org/simple
 OR
 
     python setup.py build --compiler=mingw32 install
@@ -19,7 +19,7 @@ Binaries are provided for:
 It is important to change the default to 64-bit when installing if a 64-bit Python is installed in windows.
 2. Put the bin/ folder inside x86_64-8.1.0-posix-seh-rt_v6-rev0 in your system PATH when compiling.
 3. The code below will moneky-patch distutils to work.
-python setup.py build --compiler=mingw32 bdist_wheel
+python setup.py build -c mingw32 bdist_wheel
 ```
 
 ### Build wheel
@@ -77,3 +77,22 @@ For full functionality, please see `test_pyquickjs.py`
 This project uses a git submodule for the upstream code, so clone it with the `--recurse-submodules` option or run `git submodule update --init --recursive` afterwards.
 
 Use a `poetry shell` and `make test` should work from inside its virtual environment.
+
+### Publish
+.pypirc 放用户主目录,里面内容如下
+```text
+[distutils]
+ index-servers=pypi 
+[pypi]
+repository = https://upload.pypi.org/legacy/
+username = __yourname__
+password = pypi-XXX
+```
+pypi生成token https://pypi.org/manage/account/token/
+```shell
+# 安装或更新twine
+pip install --upgrade twine
+
+python -m twine upload dist/*
+
+```
