@@ -517,19 +517,11 @@ static PyObject *runtime_eval_internal(RuntimeData *self, PyObject *args, int ev
             JS_FreeValue(self->context, val);
             return NULL;
         }
+        value = JS_EvalFunction(self->context, val);
     } else { // 不包含模块,直接运行
-        val = JS_Eval(self->context, code, strlen(code), "<input>", eval_type);
-        if (JS_IsException(val)) {
-            quickjs_exception_to_python(self->context);
-            return NULL;
-        }
+        value = JS_Eval(self->context, code, strlen(code), "<input>", eval_type);
     }
 
-    value = JS_EvalFunction(self->context, val);
-    if (!JS_ExecutePendingJob(self->runtime, &self->context)) {
-       JS_FreeValue(self->context, value);
-       return NULL;
-    }
     if (JS_IsException(value)) {
         quickjs_exception_to_python(self->context);
         return NULL;
@@ -537,7 +529,6 @@ static PyObject *runtime_eval_internal(RuntimeData *self, PyObject *args, int ev
     end_call_js(self);
     return quickjs_to_python(self, value);
 }
-
 // _pyquickjs.Context.eval
 //
 // Evaluates a Python string as JS and returns the result as a Python object. Will return

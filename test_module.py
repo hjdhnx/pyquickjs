@@ -5,18 +5,19 @@
 # Author's Blog: https://blog.csdn.net/qq_32394351
 # Date  : 2024/3/31
 
-from pyquickjs import Context
+from quickjs import Context
 
 if __name__ == '__main__':
     module_js = """
     function add(a,b){
     return a+b
     }
-    module.exports =  {
-    add,
+    globalThis.add = add;
+    module.exports = {
+    add
     }
     """
     ctx = Context()
     ctx.module(module_js)
     ret = ctx.eval('add(1,2)')
-    print('ret:',ret)
+    print('ret:', ret)
