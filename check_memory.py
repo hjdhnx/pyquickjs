@@ -7,7 +7,7 @@ import tracemalloc
 import unittest
 
 import quickjs
-import test_quickjs
+import test_pyquickjs
 
 def run():
     loader = unittest.TestLoader()
@@ -17,7 +17,7 @@ def run():
 
 filters = [
     tracemalloc.Filter(True, quickjs.__file__),
-    tracemalloc.Filter(True, test_quickjs.__file__),
+    tracemalloc.Filter(True, test_pyquickjs.__file__),
 ]
 
 def main():

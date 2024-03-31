@@ -49,8 +49,8 @@ def get_c_sources(include_headers=False):
     return sources
 
 
-_quickjs = Extension(
-    '_quickjs',
+_pyquickjs = Extension(
+    '_pyquickjs',
     define_macros=[('CONFIG_VERSION', f'"{CONFIG_VERSION}"'), ('CONFIG_BIGNUM', None)],
     # HACK.
     # See https://github.com/pypa/packaging-problems/issues/84.
@@ -80,4 +80,4 @@ setup(author="Petter Strandmark",
       description='Wrapping the quickjs C library.',
       long_description=long_description,
       packages=["pyquickjs"],
-      ext_modules=[_quickjs])
+      ext_modules=[_pyquickjs])

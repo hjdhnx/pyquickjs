@@ -71,7 +71,7 @@ The `Function` class has, apart from being a callable, additional methods:
 - `execute_pending_job` – executes a pending job (such as a async function or Promise).
 
 ## Documentation
-For full functionality, please see `test_quickjs.py`
+For full functionality, please see `test_pyquickjs.py`
 
 # Developing
 This project uses a git submodule for the upstream code, so clone it with the `--recurse-submodules` option or run `git submodule update --init --recursive` afterwards.

@@ -3,17 +3,17 @@ import json
 import threading
 from typing import Tuple, Callable
 
-import _quickjs
+import _pyquickjs
 
 
 def test():
-    return _quickjs.test()
+    return _pyquickjs.test()
 
 
-Context = _quickjs.Context
-Object = _quickjs.Object
-JSException = _quickjs.JSException
-StackOverflow = _quickjs.StackOverflow
+Context = _pyquickjs.Context
+Object = _pyquickjs.Object
+JSException = _pyquickjs.JSException
+StackOverflow = _pyquickjs.StackOverflow
 
 
 class Function:

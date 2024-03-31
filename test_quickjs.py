@@ -598,7 +598,7 @@ class JavascriptFeatures(unittest.TestCase):
         context.set("b", context.eval("a"))
         self.assertTrue(context.eval("a === b"))
 
-    def test_large_python_integers_to_quickjs(self):
+    def test_large_python_integers_to_pyquickjs(self):
         context = quickjs.Context()
         # Without a careful implementation, this made Python raise a SystemError/OverflowError.
         context.set("v", 10**25)
