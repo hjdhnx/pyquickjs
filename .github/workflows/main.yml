@@ -1,0 +1,182 @@
+name: Build, test, release
+
+on:
+  push:
+    branches:
+      - '*'
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+.dev[0-9]+'
+
+env:
+  PY_VERSIONS_STR: >-
+    ["3.8", "3.9", "3.10", "3.11", "3.12"]
+  VERSIONS_LINUX_STR: >-
+    ["manylinux2014", "manylinux_2_28"]
+  VERSIONS_MACOS_STR: >-
+    ["macos-11", "macos-12"]
+  VERSIONS_WINDOWS_STR: >-
+    ["windows-2022"]
+
+
+jobs:
+  pass-env:
+    runs-on: ubuntu-latest
+    outputs:
+      py-versions-str: ${{ steps.set-env.outputs.py_versions_str }}
+      versions-linux-str: ${{ steps.set-env.outputs.versions_linux_str }}
+      versions-macos-str: ${{ steps.set-env.outputs.versions_macos_str }}
+      versions-windows-str: ${{ steps.set-env.outputs.versions_windows_str }}
+      is-from-tag-str: ${{ steps.set-env.outputs.is_from_tag_str }}
+      is-for-release-str: ${{ steps.set-env.outputs.is_for_release_str }}
+    steps:
+      - id: set-env
+        run: |
+          echo "py_versions_str=${{ toJSON(env.PY_VERSIONS_STR) }}" >> "$GITHUB_OUTPUT"
+          echo "versions_linux_str=${{ toJSON(env.VERSIONS_LINUX_STR) }}" >> "$GITHUB_OUTPUT"
+          echo "versions_macos_str=${{ toJSON(env.VERSIONS_MACOS_STR) }}" >> "$GITHUB_OUTPUT"
+          echo "versions_windows_str=${{ toJSON(env.VERSIONS_WINDOWS_STR) }}" >> "$GITHUB_OUTPUT"
+          echo "is_from_tag_str=${{ toJSON(github.ref_type == 'tag') }}" >> "$GITHUB_OUTPUT"
+          echo "is_for_release_str=${{ toJSON(!contains(github.ref_name, 'dev')) }}" >> "$GITHUB_OUTPUT"
+  build-linux:
+    needs: pass-env
+    strategy:
+      fail-fast: false
+      matrix:
+        image-name: ${{ fromJSON(needs.pass-env.outputs.versions-linux-str) }}
+        image-arch:
+          - x86_64
+        py-version: ${{ fromJSON(needs.pass-env.outputs.py-versions-str) }}
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pypa/${{ matrix.image-name }}_${{ matrix.image-arch }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: ./.github/actions/setup-poetry
+        with:
+          key-base: ${{ matrix.image-name }}_${{ matrix.image-arch }}-py${{ matrix.py-version }}
+          use-pipx: true
+          use-specific-python-version: true
+          specific-python-version: ${{ matrix.py-version }}
+      - run: make test
+      - uses: ./.github/actions/upload-artifacts
+        with:
+          make-binary: true
+          repair-manylinux: true
+          manylinux-target: ${{ matrix.image-name}}_${{ matrix.image-arch }}
+        if: ${{ fromJSON(needs.pass-env.outputs.is-from-tag-str) }}
+  build-macos:
+    needs: pass-env
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(needs.pass-env.outputs.versions-macos-str) }}
+        py-version: ${{ fromJSON(needs.pass-env.outputs.py-versions-str) }}
+    runs-on: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.py-version }}
+      - uses: ./.github/actions/setup-poetry
+        with:
+          key-base: ${{ matrix.arch }}-py${{ matrix.py-version }}
+          use-pipx: false
+          use-specific-python-version: false
+      - run: make test
+      - uses: ./.github/actions/upload-artifacts
+        with:
+          make-binary: true
+        if: ${{ fromJSON(needs.pass-env.outputs.is-from-tag-str) }}
+  build-windows:
+    needs: pass-env
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(needs.pass-env.outputs.versions-windows-str) }}
+        py-version: ${{ fromJSON(needs.pass-env.outputs.py-versions-str) }}
+    runs-on: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: ./.github/actions/setup-mingw
+        with:
+          key-base: ${{ matrix.arch }}-py${{ matrix.py-version }}
+      - uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.py-version }}
+      - uses: ./.github/actions/setup-poetry
+        with:
+          key-base: ${{ matrix.arch }}-py${{ matrix.py-version }}
+          use-pipx: false
+          use-specific-python-version: false
+      - run: make test
+      - uses: ./.github/actions/upload-artifacts
+        with:
+          make-binary: true
+        if: ${{ fromJSON(needs.pass-env.outputs.is-from-tag-str) }}
+  package-source:
+    needs:
+      - pass-env
+      - build-linux
+      - build-macos
+      - build-windows
+    runs-on: ubuntu-latest
+    if: ${{ fromJSON(needs.pass-env.outputs.is-from-tag-str) }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: actions/setup-python@v3
+        with:
+          python-version: ${{ fromJSON(needs.pass-env.outputs.py-versions-str)[0] }}
+      - uses: ./.github/actions/setup-poetry
+        with:
+          key-base: source_linux-py${{ fromJSON(needs.pass-env.outputs.py-versions-str)[0] }}
+          use-pipx: false
+          use-specific-python-version: false
+      - uses: ./.github/actions/upload-artifacts
+        with:
+          make-binary: false
+  upload-pypi:
+    needs:
+      - pass-env
+      - build-linux
+      - build-macos
+      - build-windows
+      - package-source
+    runs-on: ubuntu-latest
+    if: ${{ fromJSON(needs.pass-env.outputs.is-from-tag-str) }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: actions/setup-python@v3
+        with:
+          python-version: ${{ fromJSON(needs.pass-env.outputs.py-versions-str)[0] }}
+      - uses: actions/download-artifact@v2
+        with:
+          path: dist
+      - uses: ./.github/actions/setup-poetry
+        with:
+          key-base: source_linux-py${{ fromJSON(needs.pass-env.outputs.py-versions-str)[0] }}
+          use-pipx: false
+          use-specific-python-version: false
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages_dir: dist/artifact/
+        if: ${{ fromJSON(needs.pass-env.outputs.is-for-release-str) }}
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.TESTPYPI_API_TOKEN }}
+          packages_dir: dist/artifact/
+          repository_url: https://test.pypi.org/legacy/
+        if: ${{ !fromJSON(needs.pass-env.outputs.is-for-release-str) }}

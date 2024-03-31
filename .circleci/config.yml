@@ -1,0 +1,36 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: cimg/python:3.11
+
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+
+      - run:
+          name: Init git submodules
+          command: |
+            git submodule update --init --recursive
+
+      - restore_cache:
+          keys:
+          - v1-3.11-dependencies-{{ checksum "poetry.lock" }}
+
+      - run:
+          name: Install dependencies
+          command: |
+            poetry config --local virtualenvs.in-project true
+            poetry install
+
+      - save_cache:
+          paths:
+            - ./.venv
+            - ~/.cache/pypoetry
+          key: v1-3.11-dependencies-{{ checksum "poetry.lock" }}
+
+      - run:
+          name: Tests
+          command: |
+            make test
