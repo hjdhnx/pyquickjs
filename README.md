@@ -5,7 +5,7 @@ Just install with
     pip install pyquickjs -i https://pypi.org/simple
 OR
 
-    python setup.py build --compiler=mingw32 install
+    python setup.py build -c mingw32 install
     
 
 Binaries are provided for:
