@@ -2,18 +2,31 @@
 
 Just install with
 
-	pip install quickjs
+	pip install pyquickjs
 
 Binaries are provided for:
- - 1.19.2 and later: Python 3.7-3.10, 64-bit for Windows, macOS and GNU/Linux.
- - 1.18.0-1.19.1: None.
- - 1.5.1–1.17.0: Python 3.9, 64-bit for Windows.
- - 1.5.0 and earlier: Python 3.7, 64-bit for Windows.
+ - 1.24.3 and later: Python 3.7-3.10, 64-bit for Windows, macOS and GNU/Linux.
+
+# How to Build 
+### Build wheel
+```shell
+python3 setup.py bdist_wheel
+```
+
+### Build egg
+```shell
+python3 setup.py bdist_egg # discarded
+```
+
+### Build zip
+```shell
+python3 setup.py sdist
+```
 
 # Usage
 
 ```python
-from quickjs import Function
+from pyquickjs import Function
 
 f = Function("f", """
     function adder(a, b) {
