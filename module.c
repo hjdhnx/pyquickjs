@@ -500,42 +500,42 @@ static void runtime_dealloc(RuntimeData *self) {
 // Evaluates a Python string as JS and returns the result as a Python object. Will return
 // _quickjs.Object for complex types (other than e.g. str, int).
 static PyObject *runtime_eval_internal(RuntimeData *self, PyObject *args, int eval_type) {
-	const char *code;
-	if (!PyArg_ParseTuple(args, "s", &code)) {
-		return NULL;
-	}
-	prepare_call_js(self);
-	JSValue value;
-	if (eval_type == JS_EVAL_TYPE_MODULE) {
+    const char *code;
+    if (!PyArg_ParseTuple(args, "s", &code)) {
+        return NULL;
+    }
+    prepare_call_js(self);
+    JSValue value, val;
+    if (eval_type == JS_EVAL_TYPE_MODULE) {
         val = JS_Eval(self->context, code, strlen(code), "<input>", eval_type | JS_EVAL_FLAG_COMPILE_ONLY);
 
         if (JS_IsException(val)) {
-            quickjs_exception_to_python(ctx);
+            quickjs_exception_to_python(self->context);
             return NULL;
         }
-        if (JS_ResolveModule(context, val) < 0) {
-            JS_FreeValue(context, val);
+        if (JS_ResolveModule(self->context, val) < 0) {
+            JS_FreeValue(self->context, val);
             return NULL;
         }
-	} else { // 不包含模块,直接运行
-	    val = JS_Eval(self->context, code, strlen(code), "<input>", eval_type);
-	    if (JS_IsException(val)) {
-            quickjs_exception_to_python(ctx);
+    } else { // 不包含模块,直接运行
+        val = JS_Eval(self->context, code, strlen(code), "<input>", eval_type);
+        if (JS_IsException(val)) {
+            quickjs_exception_to_python(self->context);
             return NULL;
         }
-	}
+    }
 
-    value = JS_EvalFunction(context, val);
-    if (!JS_ExecutePendingJob(self->runtime, &ctx)) {
-       JS_FreeValue(context, value);
+    value = JS_EvalFunction(self->context, val);
+    if (!JS_ExecutePendingJob(self->runtime, &self->context)) {
+       JS_FreeValue(self->context, value);
        return NULL;
     }
     if (JS_IsException(value)) {
-        quickjs_exception_to_python(ctx);
+        quickjs_exception_to_python(self->context);
         return NULL;
     }
-	end_call_js(self);
-	return quickjs_to_python(self, value);
+    end_call_js(self);
+    return quickjs_to_python(self, value);
 }
 
 // _quickjs.Context.eval
