@@ -16,7 +16,8 @@ if sys.platform == "win32":
     #    system PATH when compiling.
     # 3. The code below will moneky-patch distutils to work.
     import distutils.cygwinccompiler
-    distutils.cygwinccompiler.get_msvcr = lambda: [] 
+
+    distutils.cygwinccompiler.get_msvcr = lambda: []
     # Make sure that pthreads is linked statically, otherwise we run into problems
     # on computers where it is not installed.
     extra_link_args = ["-static"]
@@ -30,7 +31,7 @@ def get_c_sources(include_headers=False):
         "upstream-quickjs/libregexp.c",
         "upstream-quickjs/libunicode.c",
         "upstream-quickjs/quickjs.c",
-        "upstream-quickjs/qjsc.c",
+        # "upstream-quickjs/qjsc.c",
     ]
     if include_headers:
         sources += [
