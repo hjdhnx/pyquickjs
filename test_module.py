@@ -5,7 +5,7 @@
 # Author's Blog: https://blog.csdn.net/qq_32394351
 # Date  : 2024/3/31
 
-from quickjs import Context
+from pyquickjs import Context
 
 if __name__ == '__main__':
     module_js = """
