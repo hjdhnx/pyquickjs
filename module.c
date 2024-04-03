@@ -167,7 +167,7 @@ static PyTypeObject Object = {PyVarObject_HEAD_INIT(NULL, 0).tp_name = "_pyquick
                               .tp_methods = object_methods};
 
 // Whether converting item to QuickJS would be possible.
-static int python_to_quickjs_possible(RuntimeData *runtime_data, PyObject *item) {
+static int python_to_pyquickjs_possible(RuntimeData *runtime_data, PyObject *item) {
 	if (PyBool_Check(item)) {
 		return 1;
 	} else if (PyLong_Check(item)) {
@@ -196,8 +196,8 @@ static int python_to_quickjs_possible(RuntimeData *runtime_data, PyObject *item)
 // Converts item to QuickJS.
 //
 // If the Python object is not possible to convert to JS, undefined will be returned. This fallback
-// will not be used if python_to_quickjs_possible returns 1.
-static JSValueConst python_to_quickjs(RuntimeData *runtime_data, PyObject *item) {
+// will not be used if python_to_pyquickjs_possible returns 1.
+static JSValueConst python_to_pyquickjs(RuntimeData *runtime_data, PyObject *item) {
 	if (PyBool_Check(item)) {
 		return JS_MKVAL(JS_TAG_BOOL, item == Py_True ? 1 : 0);
 	} else if (PyLong_Check(item)) {
@@ -220,7 +220,7 @@ static JSValueConst python_to_quickjs(RuntimeData *runtime_data, PyObject *item)
 	} else if (PyObject_IsInstance(item, (PyObject *)&Object)) {
 		return JS_DupValue(runtime_data->context, ((ObjectData *)item)->object);
 	} else {
-		// Can not happen if python_to_quickjs_possible passes.
+		// Can not happen if python_to_pyquickjs_possible passes.
 		return JS_UNDEFINED;
 	}
 }
@@ -237,7 +237,7 @@ static PyObject *object_call(ObjectData *self, PyObject *args, PyObject *kwds) {
 	const int nargs = PyTuple_Size(args);
 	for (int i = 0; i < nargs; ++i) {
 		PyObject *item = PyTuple_GetItem(args, i);
-		if (!python_to_quickjs_possible(self->runtime_data, item)) {
+		if (!python_to_pyquickjs_possible(self->runtime_data, item)) {
 			return NULL;
 		}
 	}
@@ -253,7 +253,7 @@ static PyObject *object_call(ObjectData *self, PyObject *args, PyObject *kwds) {
 	}
 	for (int i = 0; i < nargs; ++i) {
 		PyObject *item = PyTuple_GetItem(args, i);
-		jsargs[i] = python_to_quickjs(self->runtime_data, item);
+		jsargs[i] = python_to_pyquickjs(self->runtime_data, item);
 	}
 
 	prepare_call_js(self->runtime_data);
@@ -447,8 +447,8 @@ static JSValue js_python_function_call(JSContext *ctx, JSValueConst func_obj,
 		return JS_ThrowInternalError(ctx, "Python call failed.");
 	}
 	JSValue js_result = JS_NULL;
-	if (python_to_quickjs_possible(runtime_data, result)) {
-		js_result = python_to_quickjs(runtime_data, result);
+	if (python_to_pyquickjs_possible(runtime_data, result)) {
+		js_result = python_to_pyquickjs(runtime_data, result);
 	} else {
 		PyErr_Clear();
 		js_result = JS_ThrowInternalError(ctx, "Can not convert Python result to JS.");
@@ -512,8 +512,16 @@ static void runtime_dealloc(RuntimeData *self) {
 static PyObject *runtime_eval_internal(RuntimeData *self, PyObject *args, int eval_type) {
 	const char *code;
 	const char *modulename;
-	if (!PyArg_ParseTuple(args, "ss", &code, &modulename)) {
-		return NULL;
+	Py_ssize_t arg_count = PyTuple_Size(args);
+	if(arg_count > 1){
+		if (!PyArg_ParseTuple(args, "ss", &code, &modulename)) {
+		    return NULL;
+	    }
+	} else {
+	    modulename = "<input>";
+		if (!PyArg_ParseTuple(args, "s", &code)) {
+		    return NULL;
+	    }
 	}
 	prepare_call_js(self);
 	JSValue value, val;
@@ -617,8 +625,8 @@ static PyObject *runtime_set(RuntimeData *self, PyObject *args) {
 	}
 	JSValue global = JS_GetGlobalObject(self->context);
 	int ret = 0;
-	if (python_to_quickjs_possible(self, item)) {
-		ret = JS_SetPropertyStr(self->context, global, name, python_to_quickjs(self, item));
+	if (python_to_pyquickjs_possible(self, item)) {
+		ret = JS_SetPropertyStr(self->context, global, name, python_to_pyquickjs(self, item));
 		if (ret != 1) {
 			PyErr_SetString(PyExc_TypeError, "Failed setting the variable.");
 		}
@@ -826,9 +834,9 @@ static PyTypeObject Context = {PyVarObject_HEAD_INIT(NULL, 0).tp_name = "_pyquic
 static PyMethodDef myextension_methods[] = {{"test", (PyCFunction)test, METH_NOARGS, NULL},
                                             {NULL, NULL}};
 
-// Define the _quickjs module.
+// Define the _pyquickjs module.
 static struct PyModuleDef moduledef = {PyModuleDef_HEAD_INIT,
-                                       "quickjs",
+                                       "pyquickjs",
                                        NULL,
                                        sizeof(struct module_state),
                                        myextension_methods,

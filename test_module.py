@@ -29,6 +29,7 @@ if __name__ == '__main__':
     ctx = Context()
     print("work dir:", os.getcwd())
     ctx.eval('let a=1+3')
+    print(ctx.eval('a'))
 
     ctx.module(module_js, "11.js")
     ctx.module(mod_test,"")
