@@ -42,7 +42,6 @@ typedef struct {
 	JSValue object;
 } ObjectData;
 
-static const char *ModulePath = NULL;
 // The exception raised by this module.
 static PyObject *JSException = NULL;
 static PyObject *StackOverflow = NULL;
@@ -526,15 +525,12 @@ static PyObject *runtime_eval_internal(RuntimeData *self, PyObject *args, int ev
             return NULL;
         }
         if (JS_ResolveModule(self->context, val) < 0) {
+            quickjs_exception_to_python(self->context);
             JS_FreeValue(self->context, val);
             return NULL;
         }
         js_module_set_import_meta(self->context, val, 1, 1);
         value = JS_EvalFunction(self->context, val);
-        // 如果包含模块,返回值要写入全局变量
-        JSValue global_obj = JS_GetGlobalObject(self->context);
-        value = JS_GetPropertyStr(self->context, global_obj, "_r");
-        JS_FreeValue(self->context, global_obj);
 	} else { // 不包含模块,直接运行
 	    value = JS_Eval(self->context, code, strlen(code), modulename, eval_type);
 	}
