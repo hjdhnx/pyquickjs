@@ -32,6 +32,7 @@ def get_c_sources(include_headers=False):
         "upstream-quickjs/libregexp.c",
         "upstream-quickjs/libunicode.c",
         "upstream-quickjs/quickjs.c",
+        "upstream-quickjs/quickjs-libc.c",
         # "upstream-quickjs/qjsc.c",
     ]
     if include_headers:
@@ -46,6 +47,7 @@ def get_c_sources(include_headers=False):
             "upstream-quickjs/quickjs-atom.h",
             "upstream-quickjs/quickjs-opcode.h",
             "upstream-quickjs/quickjs.h",
+            "upstream-quickjs/quickjs-libc.h",
             "upstream-quickjs/VERSION",
         ]
     return sources
@@ -78,7 +80,7 @@ setup(author="Petter Strandmark",
       maintainer_email="434857005@qq.com",
       name='pyquickjs',
       url='https://github.com/hjdhnx/pyquickjs',
-      version='1.24.3',
+      version='1.24.4.3',
       description='Wrapping the quickjs C library.',
       long_description=long_description,
       packages=["pyquickjs"],
