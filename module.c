@@ -1,9 +1,6 @@
-#include <Python.h>
 #include <time.h>
 
-#include <stdio.h>
-#include "upstream-quickjs/quickjs.h"
-#include "upstream-quickjs/quickjs-libc.h"
+#include "module.h"
 
 // Node of Python callable that the context needs to keep available.
 typedef struct PythonCallableNode PythonCallableNode;
@@ -42,6 +39,7 @@ typedef struct {
 	JSValue object;
 } ObjectData;
 
+PyObject* callback_function = NULL;
 // The exception raised by this module.
 static PyObject *JSException = NULL;
 static PyObject *StackOverflow = NULL;
@@ -473,13 +471,13 @@ static PyObject *runtime_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 		// _pyquickjs.Context can be used concurrently.
 		self->runtime = JS_NewRuntime();
 		/* loader for ES6 modules */
-        JS_SetModuleLoaderFunc(self->runtime, NULL, js_module_loader, NULL);
+        JS_SetModuleLoaderFunc(self->runtime, NULL, py_module_loader, NULL);
 		self->context = JS_NewContext(self->runtime);
-        js_std_add_helpers(self->context, 0, NULL); // int argc, char **argv
+        //js_std_add_helpers(self->context, 0, NULL); // int argc, char **argv
 
         /* system modules */
-        js_init_module_std(self->context, "std");
-        js_init_module_os(self->context, "os");
+        //js_init_module_std(self->context, "std");
+        //js_init_module_os(self->context, "os");
 
 		JS_NewClass(self->runtime, js_python_function_class_id,
 		            &js_python_function_class);
@@ -511,14 +509,14 @@ static void runtime_dealloc(RuntimeData *self) {
 // _pyquickjs.Object for complex types (other than e.g. str, int).
 static PyObject *runtime_eval_internal(RuntimeData *self, PyObject *args, int eval_type) {
 	const char *code;
-	const char *modulename;
+	const char *filename;
 	Py_ssize_t arg_count = PyTuple_Size(args);
 	if(arg_count > 1){
-		if (!PyArg_ParseTuple(args, "ss", &code, &modulename)) {
+		if (!PyArg_ParseTuple(args, "ss", &code, &filename)) {
 		    return NULL;
 	    }
 	} else {
-	    modulename = "<input>";
+	    filename = "<input>";
 		if (!PyArg_ParseTuple(args, "s", &code)) {
 		    return NULL;
 	    }
@@ -526,7 +524,7 @@ static PyObject *runtime_eval_internal(RuntimeData *self, PyObject *args, int ev
 	prepare_call_js(self);
 	JSValue value, val;
 	if (eval_type == JS_EVAL_TYPE_MODULE) {
-        val = JS_Eval(self->context, code, strlen(code), modulename, eval_type | JS_EVAL_FLAG_COMPILE_ONLY);
+        val = JS_Eval(self->context, code, strlen(code), filename, eval_type | JS_EVAL_FLAG_COMPILE_ONLY);
 
         if (JS_IsException(val)) {
             quickjs_exception_to_python(self->context);
@@ -537,10 +535,10 @@ static PyObject *runtime_eval_internal(RuntimeData *self, PyObject *args, int ev
             JS_FreeValue(self->context, val);
             return NULL;
         }
-        js_module_set_import_meta(self->context, val, 1, 1);
+        py_module_set_import_meta(self->context, val, TRUE, TRUE);
         value = JS_EvalFunction(self->context, val);
 	} else { // 不包含模块,直接运行
-	    value = JS_Eval(self->context, code, strlen(code), modulename, eval_type);
+	    value = JS_Eval(self->context, code, strlen(code), filename, eval_type);
 	}
 
     if (JS_IsException(value)) {
@@ -794,10 +792,146 @@ static PyObject *runtime_global_this(RuntimeData *self, void *closure) {
 	return quickjs_to_python(self, JS_GetGlobalObject(self->context));
 }
 
+int py_module_set_import_meta(JSContext *ctx, JSValueConst func_val,
+                              JS_BOOL use_realpath, JS_BOOL is_main)
+{
+    JSModuleDef *m;
+    char buf[PATH_MAX + 16];
+    JSValue meta_obj;
+    JSAtom module_name_atom;
+    const char *module_name;
+
+    assert(JS_VALUE_GET_TAG(func_val) == JS_TAG_MODULE);
+    m = JS_VALUE_GET_PTR(func_val);
+
+    module_name_atom = JS_GetModuleName(ctx, m);
+    module_name = JS_AtomToCString(ctx, module_name_atom);
+    JS_FreeAtom(ctx, module_name_atom);
+    if (!module_name)
+        return -1;
+    if (!strchr(module_name, ':')) {
+        strcpy(buf, "file://");
+#if !defined(_WIN32)
+        /* realpath() cannot be used with modules compiled with qjsc
+           because the corresponding module source code is not
+           necessarily present */
+        if (use_realpath) {
+            char *res = realpath(module_name, buf + strlen(buf));
+            if (!res) {
+                JS_ThrowTypeError(ctx, "realpath failure");
+                JS_FreeCString(ctx, module_name);
+                return -1;
+            }
+        } else
+#endif
+        {
+            pstrcat(buf, sizeof(buf), module_name);
+        }
+    } else {
+        pstrcpy(buf, sizeof(buf), module_name);
+    }
+    JS_FreeCString(ctx, module_name);
+
+    meta_obj = JS_GetImportMeta(ctx, m);
+    if (JS_IsException(meta_obj))
+        return -1;
+    JS_DefinePropertyValueStr(ctx, meta_obj, "url",
+                              JS_NewString(ctx, buf),
+                              JS_PROP_C_W_E);
+    JS_DefinePropertyValueStr(ctx, meta_obj, "main",
+                              JS_NewBool(ctx, is_main),
+                              JS_PROP_C_W_E);
+    JS_FreeValue(ctx, meta_obj);
+    return 0;
+}
+
+const char *py_call_function(const char *module_name) {
+    PyObject* str_obj = NULL;
+    PyObject* result = NULL;
+    PyGILState_STATE state = PyGILState_Ensure();  // 获取GIL
+    PyObject* arg = PyUnicode_FromString(module_name);
+    PyObject* args = PyTuple_Pack(1, arg); // 创建一个包含一个参数的元组
+    Py_DECREF(arg); // 释放对象
+    if (callback_function != NULL) {
+        result = PyObject_CallObject(callback_function, args);
+        Py_DECREF(args);
+    }
+    PyGILState_Release(state);  // 释放GIL
+
+    if (result != NULL) {
+        str_obj = PyUnicode_AsUTF8String(result);
+        if (str_obj == NULL) {
+            // 转换失败，可能obj不是Unicode字符串
+            PyErr_Clear(); // 清除错误，以避免影响后续代码
+            return "";
+        }
+        return PyBytes_AS_STRING(str_obj);
+    } else {
+        PyErr_Print();  // 打印错误信息
+        return "";
+    }
+}
+
+JSModuleDef *py_module_loader(JSContext *ctx,
+                              const char *module_name, void *opaque)
+{
+    JSModuleDef *m;
+    JSValue func_val;
+    const char *buf = py_call_function(module_name);
+
+    if (buf == NULL) {
+        JS_ThrowReferenceError(ctx, "could not load module filename '%s'", module_name);
+        return NULL;
+    }
+
+    /* compile the module */
+    func_val = JS_Eval(ctx, buf, strlen(buf), module_name, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    //js_free(ctx, buf);
+    if (JS_IsException(func_val))
+         return NULL;
+        /* XXX: could propagate the exception */
+    py_module_set_import_meta(ctx, func_val, TRUE, FALSE);
+    /* the module is already referenced, so we must free it */
+    m = JS_VALUE_GET_PTR(func_val);
+    JS_FreeValue(ctx, func_val);
+    return m;
+}
+
+static PyObject* my_set_callback(RuntimeData *self, PyObject *args) {
+        PyObject *result = NULL;
+        PyObject *temp = NULL;
+
+        if (PyArg_ParseTuple(args, "O", &temp)) {
+                if (!PyCallable_Check(temp)) {
+                        PyErr_SetString(PyExc_TypeError, "parameter must be callable");
+                        return NULL;
+                }
+                // 注册回调函数
+                Py_XINCREF(temp);  // 增加引用计数
+                Py_XDECREF(callback_function);  // 减少旧回调的引用计数
+                callback_function = temp;
+                Py_INCREF(Py_None);
+                result = Py_None;
+        }
+        return result;
+}
+
+static PyObject* my_test_callback(RuntimeData *self, PyObject *args) {
+        PyObject * result = NULL;
+        result = PyObject_CallObject(callback_function, args);
+        if (result == NULL)
+             return NULL;
+
+        Py_DECREF(result);
+        Py_INCREF(Py_None);
+        return Py_None;
+}
 // All methods of the _pyquickjs.Context class.
 static PyMethodDef runtime_methods[] = {
     {"eval", (PyCFunction)runtime_eval, METH_VARARGS, "Evaluates a Javascript string."},
     {"module", (PyCFunction)runtime_module, METH_VARARGS, "Evaluates a Javascript string as a module."},
+    {"moduleloader", (PyCFunction)my_set_callback, METH_VARARGS, "moduleloader."},
+    {"getmoduleloader", (PyCFunction)my_test_callback, METH_VARARGS, "get moduleloader."},
     {"execute_pending_job", (PyCFunction)runtime_execute_pending_job, METH_NOARGS, "Executes a pending job."},
     {"parse_json", (PyCFunction)runtime_parse_json, METH_VARARGS, "Parses a JSON string."},
     {"get", (PyCFunction)runtime_get, METH_VARARGS, "Gets a Javascript global variable."},
